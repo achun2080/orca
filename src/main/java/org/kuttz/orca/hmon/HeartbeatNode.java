@@ -1,9 +1,13 @@
 package org.kuttz.orca.hmon;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public class HeartbeatNode {
 	
 	private final int nodeId;
 	private final NodeType nType;
+	
+
 
 	public HeartbeatNode(int nodeId, NodeType nType) {
 		this.nodeId = nodeId;
@@ -16,7 +20,7 @@ public class HeartbeatNode {
 	
 	public NodeType getType() {
 		return nType;
-	}
+	}		
 
 	@Override
 	public int hashCode() {
@@ -42,5 +46,12 @@ public class HeartbeatNode {
 			return false;
 		return true;
 	}	
+	
+	public static class NodeState {
+		public volatile AtomicLong timeStamp = new AtomicLong(0);
+		public volatile NodeInfo nodeInfo;
+		public volatile String host;
+		public volatile int port;
+	}
 
 }

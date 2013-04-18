@@ -1,5 +1,6 @@
 package org.kuttz.orca.proxy;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
@@ -8,29 +9,37 @@ import java.util.concurrent.Executors;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.kuttz.orca.hmon.HeartbeatSlave;
+import org.kuttz.orca.hmon.NodeInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OrcaELB {
+public class OrcaELB implements Runnable {
 	
 	private static Logger logger = LoggerFactory.getLogger(OrcaELB.class);
 			
-	private final int localPort;
-	private TreeSet<ELBNode> nodeSet = new TreeSet<OrcaELB.ELBNode>();
-	private ELBNode currentNode = null;
-
-	public OrcaELB(int localPort) {
-		this.localPort = localPort;
-	}
+	private int runningPort;
 	
-	public int getLocalPort() {
-		return localPort;
+	private volatile boolean hasStarted;
+	
+	private TreeSet<ELBNode> nodeSet = new TreeSet<OrcaELB.ELBNode>();
+	
+	private ELBNode currentNode = null;
+	
+	private ELBArgs elbArgs = null;
+	
+	private final ProxyContainer container;
+	
+
+	public OrcaELB(ELBArgs args, ProxyContainer container) {
+		this.elbArgs = args;
+		this.container = container;
 	}
 	
 	public OrcaELB addNode(String host, int port) {
 		nodeSet.add(new ELBNode(host, port));
 		return this;
-	}
+	}	
 	
 	public OrcaELB removeNode(String host, int port) {
 		nodeSet.remove(new ELBNode(host, port));
@@ -49,20 +58,52 @@ public class OrcaELB {
 		return currentNode;
 	}
 	
+	public void init() {
+		// TODO: any initialization ?
+	}	
+	
+	@Override
 	public void run() {
-		logger.info("Starting OrcaELB on port[" + localPort + "]..");
 		Executor cachedThreadPool = Executors.newCachedThreadPool();
-		ServerBootstrap sb = 
-				new ServerBootstrap(
-						new NioServerSocketChannelFactory(cachedThreadPool, cachedThreadPool));
-		
-		NioClientSocketChannelFactory cf = 
-				new NioClientSocketChannelFactory(cachedThreadPool, cachedThreadPool);
-		
-		sb.setPipelineFactory(new ELBPipelineFactory(cf, this));
-		
-		sb.bind(new InetSocketAddress(localPort));		
+		try {
+			ServerBootstrap sb = 
+					new ServerBootstrap(
+							new NioServerSocketChannelFactory(cachedThreadPool, cachedThreadPool));
+			NioClientSocketChannelFactory cf = 
+					new NioClientSocketChannelFactory(cachedThreadPool, cachedThreadPool);			
+			sb.setPipelineFactory(new ELBPipelineFactory(cf, this));			
+			bindToPort(sb, elbArgs.minPort, elbArgs.maxPort);					
+		} catch (Exception e) {
+			logger.error("Could not start Heartbeat Master", e);
+		}
 	}
+	
+	private void bindToPort(ServerBootstrap sb, int minPort, int maxPort) throws IOException {
+		for (int p = minPort; p <= maxPort; p++) {
+			try {
+				sb.bind(new InetSocketAddress(p));
+				logger.info("Starting ELB Proxy on port [" + p + "]");
+				this.hasStarted = true;
+				this.runningPort = p;
+				container.setELBPort(runningPort);
+				return;				
+			} catch (Exception e) {
+				logger.info("Could not start ELB Proxy on port [" + p + "] !!");
+				continue;
+			}
+		}
+		
+		throw new IOException("No free ports available from [" + minPort + " to " + maxPort + "]");
+			
+	}
+	
+	public boolean isRunning() {
+		return this.hasStarted;
+	}
+	
+	public int getRunningPort() {
+		return this.runningPort;
+	} 
 	
 	public static class ELBNode implements Comparable<ELBNode> {
 		public final String host;
@@ -110,8 +151,8 @@ public class OrcaELB {
 	
 	
 	public static void main(String[] args) {
-		OrcaELB elb = new OrcaELB(8811).addNode("localhost", 8812).addNode("localhost", 8813);
-		elb.run();		
+//		OrcaELB elb = new OrcaELB(8811).addNode("localhost", 8812).addNode("localhost", 8813);
+//		elb.run();		
 	}
 
 }
