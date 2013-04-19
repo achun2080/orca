@@ -9,8 +9,6 @@ import java.util.concurrent.Executors;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.kuttz.orca.hmon.HeartbeatSlave;
-import org.kuttz.orca.hmon.NodeInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

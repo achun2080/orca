@@ -78,11 +78,13 @@ public class ProxyContainer implements Runnable, TProxyCommandEndPoint.Iface {
 		
 		throw new IOException("No free ports available from [" + minPort + " to " + maxPort + "]");
 	}	
-	
+
+	// Set ELB Port in the HB msg - to be sent to master 
 	public void setELBPort(int port) {
 		hbSlave.getNodeInfo().setAuxEndPointPort1(port);
 	}
 	
+	// Set port to access ELB Command End Point in Hb msg - to be sent to master 
 	public void setELBCommandPort() {
 		hbSlave.getNodeInfo().setAuxEndPointPort2(runningPort);
 	}	
@@ -90,12 +92,22 @@ public class ProxyContainer implements Runnable, TProxyCommandEndPoint.Iface {
 	@Override
 	public boolean addNode(String host, int port, int weight) throws TException {
 		this.orcaELB.addNode(host, port);
+		logger.info("Added node [" + host + ", " + port + "] to ELB..");
 		return true;
 	}
 
 	@Override
 	public boolean removeNode(String host, int port) throws TException {
 		this.orcaELB.removeNode(host, port);
+		logger.info("Removed node [" + host + ", " + port + "] to ELB..");
 		return true;
 	}
+	
+	public boolean isRunning() {
+		return this.hasStarted;
+	}
+	
+	public int getRunningPort() {
+		return this.runningPort;
+	}	
 }

@@ -49,6 +49,14 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 		clients.remove(client);
 	}	
 	
+	public NodeState getNodeState(int nodeId, NodeType nType) {
+		ConcurrentHashMap<HeartbeatNode,NodeState> m1 = nodeRegistry.get(nType);
+		if (m1 != null) {
+			return m1.get(new HeartbeatNode(nodeId, nType));
+		}
+		return null;
+	}
+	
 	public void init() {
 		this.schedExService = new ScheduledThreadPoolExecutor(masterArgs.numCheckerThreads);
 	}
@@ -140,7 +148,8 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 			ns1.timeStamp.set(cTime);
 			ns1.host = hbMsg.getHost();
 			ns1.port = hbMsg.getCommandPort();
-		}						
+		}
+		ns.nodeInfo = hbMsg.getNodeInfo();
 		return true;
 	}
 	

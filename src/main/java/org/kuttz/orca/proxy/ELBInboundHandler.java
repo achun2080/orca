@@ -46,7 +46,8 @@ public class ELBInboundHandler extends SimpleChannelUpstreamHandler {
 		
 		ClientBootstrap cb = new ClientBootstrap(cf);
 		cb.getPipeline().addLast("handler", new OutboundHandler(e.getChannel()));
-		ELBNode nextNode = elb.nextNode();		
+		ELBNode nextNode = elb.nextNode();
+		logger.info("\nRouting to [" + nextNode + "]\n");
 		ChannelFuture f = cb.connect(new InetSocketAddress(nextNode.host, nextNode.port));
 		outboundChannel = f.getChannel();
 		
