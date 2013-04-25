@@ -39,6 +39,8 @@ import org.apache.hadoop.yarn.util.Records;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.beust.jcommander.Parameter;
+
 public class OrcaClient extends YarnClientImpl{
 	
 	private static Logger logger = LoggerFactory.getLogger(OrcaClient.class);
@@ -182,9 +184,31 @@ public class OrcaClient extends YarnClientImpl{
  			vargs.add("-Xrunjdwp:transport=dt_socket,address=8888,server=y,suspend=n");
  		}
  		
- 		vargs.add("-num_containers");
- 		vargs.add("" + orcaArgs.numContainers); 		
  		vargs.add(OrcaApplicationMaster.class.getName());
+ 		vargs.add("-num_containers");
+ 		vargs.add("" + orcaArgs.numContainers);
+ 		vargs.add("-hb_period");
+ 		vargs.add("10000");
+ 		vargs.add("-hb_warn_time");
+ 		vargs.add("15000");
+ 		vargs.add("-hb_dead_time");
+ 		vargs.add("30000");
+ 		vargs.add("-hb_num_check_threads");
+ 		vargs.add("1");
+ 		vargs.add("-hb_num_master_threads");
+ 		vargs.add("2");
+ 		vargs.add("-hb_min_port");
+ 		vargs.add("8100");
+ 		vargs.add("-hb_max_port");
+ 		vargs.add("8200");
+ 		vargs.add("-elb_min_port");
+ 		vargs.add("8100");
+ 		vargs.add("-elb_max_port");
+ 		vargs.add("8200");
+ 		vargs.add("-app_name");
+ 		vargs.add("test_app");
+ 		vargs.add("-war_location");
+ 		vargs.add("/path/to/war");	 		
  		vargs.add("1>/tmp/OrcaApplicationMaster.stdout");
  		vargs.add("2>/tmp/OrcaApplicationMaster.stderr");
  		

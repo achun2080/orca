@@ -32,7 +32,7 @@ public class HeartbeatSlave implements THeartbeatCommandEndPoint.Iface, Runnable
 	
 	private volatile int runningPort;
 	
-	private volatile NodeInfo nodeInfo = new NodeInfo();
+	private volatile NodeInfo nodeInfo = null;
 	
 	public HeartbeatSlave(HBSlaveArgs slaveArgs) {
 		this.slaveArgs = slaveArgs;
@@ -48,19 +48,23 @@ public class HeartbeatSlave implements THeartbeatCommandEndPoint.Iface, Runnable
 		this.schedExService.scheduleAtFixedRate(new Runnable() {			
 			@Override
 			public void run() {
-				TTransport transport = new TFramedTransport(new TSocket(slaveArgs.masterHost, slaveArgs.masterPort, slaveArgs.sendTimeout));
 				try {
-					transport.open();
-					TBinaryProtocol protocol = new TBinaryProtocol(transport);
-					Client master = new THeartbeatEndPoint.Client(protocol);
-					HeartbeatMsg hMsg = new HeartbeatMsg();
-					hMsg.setNodeId(slaveArgs.nodeId);
-					hMsg.setNodeType(slaveArgs.nodeType);
-					hMsg.setNodeInfo(nodeInfo);
-					hMsg.setHost(InetAddress.getLocalHost().getHostName());
-					hMsg.setCommandPort(runningPort);
-					boolean mReturn = master.acceptHeartbeat(hMsg);
-					logger.debug("Successfully sent heartbeat to master [" + mReturn + "]");
+					if (nodeInfo != null) {
+						TTransport transport = new TFramedTransport(new TSocket(slaveArgs.masterHost, slaveArgs.masterPort, slaveArgs.sendTimeout));
+						transport.open();
+						TBinaryProtocol protocol = new TBinaryProtocol(transport);
+						Client master = new THeartbeatEndPoint.Client(protocol);
+						HeartbeatMsg hMsg = new HeartbeatMsg();
+						hMsg.setNodeId(slaveArgs.nodeId);
+						hMsg.setNodeType(slaveArgs.nodeType);
+						hMsg.setNodeInfo(nodeInfo);
+						hMsg.setHost(InetAddress.getLocalHost().getHostName());
+						hMsg.setCommandPort(runningPort);
+						boolean mReturn = master.acceptHeartbeat(hMsg);
+						logger.debug("Is heartbeat to master successful ? [" + mReturn + "]");
+					} else {
+						logger.debug("NodeInfo not set yet...");
+					}
 				} catch (TTransportException e) {
 					logger.error("Error in Thrift Transport !!", e);
 				} catch (TException e) {
@@ -104,6 +108,10 @@ public class HeartbeatSlave implements THeartbeatCommandEndPoint.Iface, Runnable
 	
 	public NodeInfo getNodeInfo() {
 		return this.nodeInfo;
+	}
+	
+	public void setNodeInfo(NodeInfo nodeInfo) {
+		this.nodeInfo = nodeInfo;
 	}
 	
 	@Override

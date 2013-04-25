@@ -5,6 +5,7 @@ import java.util.concurrent.Executors;
 
 import org.kuttz.orca.hmon.HBSlaveArgs;
 import org.kuttz.orca.hmon.HeartbeatSlave;
+import org.kuttz.orca.hmon.NodeInfo;
 import org.mortbay.jetty.Server;
 import org.mortbay.jetty.webapp.WebAppContext;
 import org.slf4j.Logger;
@@ -24,8 +25,8 @@ public class WebContainer implements Runnable {
 	
 	private volatile boolean hasStarted = false;
 	
-	private volatile int runningPort;	
-
+	private volatile int runningPort;
+	
 	public WebContainer(ContainerArgs containerArgs, HBSlaveArgs hbSlaveArgs) {
 		this.hbSlave = new HeartbeatSlave(hbSlaveArgs);
 		this.containerArgs = containerArgs;
@@ -57,7 +58,9 @@ public class WebContainer implements Runnable {
 		}
 		
 		try {
-			hbSlave.getNodeInfo().setAuxEndPointPort1(runningPort);
+			NodeInfo nodeInfo = new NodeInfo();
+			nodeInfo.setAuxEndPointPort1(runningPort);
+			hbSlave.setNodeInfo(nodeInfo);
 			this.jettyServer.join();
 		} catch (InterruptedException e) {
 			logger.error("Web Container interrupted!!", e);

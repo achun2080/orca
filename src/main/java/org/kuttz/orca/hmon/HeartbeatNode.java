@@ -6,8 +6,6 @@ public class HeartbeatNode {
 	
 	private final int nodeId;
 	private final NodeType nType;
-	
-
 
 	public HeartbeatNode(int nodeId, NodeType nType) {
 		this.nodeId = nodeId;

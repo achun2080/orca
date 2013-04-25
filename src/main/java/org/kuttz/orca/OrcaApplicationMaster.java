@@ -45,6 +45,7 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
+import org.kuttz.orca.controller.OrcaControllerArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,7 @@ public class OrcaApplicationMaster {
 
 	private static Logger logger = LoggerFactory.getLogger(OrcaApplicationMaster.class);
 	
-	private final OrcaAMArgs orcaArgs;
+	private final OrcaControllerArgs orcaArgs;
 	
 	// Configuration
 	private Configuration conf;
@@ -102,7 +103,7 @@ public class OrcaApplicationMaster {
 	public static void main(String[] args) {
 		logger.info("Starting Orca Application Master..");
 		
-		OrcaAMArgs orcaArgs = new OrcaAMArgs();
+		OrcaControllerArgs orcaArgs = new OrcaControllerArgs();
 		logger.info("OrcaAM args = " + Arrays.toString(args));
 		Tools.parseArgs(orcaArgs, args);
 		
@@ -124,7 +125,7 @@ public class OrcaApplicationMaster {
 		System.exit(1);				
 	}
 	
-	public OrcaApplicationMaster(OrcaAMArgs orcaArgs) {
+	public OrcaApplicationMaster(OrcaControllerArgs orcaArgs) {
 		this.orcaArgs = orcaArgs;
 	}
 	
@@ -538,8 +539,8 @@ public class OrcaApplicationMaster {
 	        // so as to be able to look at the final output after the containers
 	        // have been released.
 	        // Could use a path suffixed with /AppId/AppAttempId/ContainerId/std[out|err]
-	        vargs.add("1>/tmp/orca-node-stdout");
-	        vargs.add("2>/tmp/orca-node-stderr");	        	        
+	        vargs.add("1>/tmp/orca-node-stdout" + container.getId().getId());
+	        vargs.add("2>/tmp/orca-node-stderr" + container.getId().getId());	        	        
 			
 	        // Get final commmand
 	        StringBuilder command = new StringBuilder();

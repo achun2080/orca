@@ -115,7 +115,7 @@ public class DummyController {
 				continue;
 			}
 			elbInfo.elbPort = nodeState.nodeInfo.getAuxEndPointPort1();
-			if (!nodeState.nodeInfo.isSetAuxEndPointPort1()) {
+			if (!nodeState.nodeInfo.isSetAuxEndPointPort2()) {
 				System.out.println("ELB Command EndPoint port not set yet !!");
 				nodeState = null;
 				continue;

@@ -28,8 +28,8 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 	private final ConcurrentHashMap<NodeType, ConcurrentHashMap<HeartbeatNode, NodeState>> nodeRegistry = 
 			new ConcurrentHashMap<NodeType, ConcurrentHashMap<HeartbeatNode, NodeState>>();
 	private ScheduledExecutorService schedExService = null;
-
-	private Set<HeartbeatMasterClient> clients = new HashSet<HeartbeatMasterClient>();
+	
+	private ConcurrentHashMap<HeartbeatNode, Set<HeartbeatMasterClient>> nodeClients = new ConcurrentHashMap<HeartbeatNode, Set<HeartbeatMasterClient>>();
 	
 	private HBMasterArgs masterArgs;
 	
@@ -42,12 +42,17 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 	}	
 	
 	public void registerClient(HeartbeatMasterClient client) {
-		clients.add(client);
-	}
-	
-	public void deRegisterClient(HeartbeatMasterClient client) {
-		clients.remove(client);
+		registerClient(-1, NodeType.CONTAINER, client);
 	}	
+	
+	public void registerClient(int nodeId, NodeType nodeType, HeartbeatMasterClient client) {
+		Set<HeartbeatMasterClient> sTemp = new HashSet<HeartbeatMasterClient>();
+		Set<HeartbeatMasterClient> sClients = nodeClients.putIfAbsent(new HeartbeatNode(nodeId, nodeType), sTemp);		
+		if (sClients == null) {
+			sClients = sTemp;
+		}
+		sClients.add(client);
+	}
 	
 	public NodeState getNodeState(int nodeId, NodeType nType) {
 		ConcurrentHashMap<HeartbeatNode,NodeState> m1 = nodeRegistry.get(nType);
@@ -69,6 +74,7 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 			public void run() {
 				long cTime = System.currentTimeMillis();
 				List<HeartbeatNode> nodesToDelete = new ArrayList<HeartbeatNode>();
+				List<HeartbeatNode> nodesToWarn = new ArrayList<HeartbeatNode>();
 				for (Entry<NodeType, ConcurrentHashMap<HeartbeatNode, NodeState>> e : nodeRegistry.entrySet()) {
 					NodeType nType = e.getKey();					
 					ConcurrentHashMap<HeartbeatNode,NodeState> m = e.getValue();
@@ -77,21 +83,47 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 						long tDiff = cTime - e2.getValue().timeStamp.get();
 						logger.debug("Found Node [" + nType + ", " + node.getId() + "]");
 						if (tDiff > masterArgs.warnTime) {
-							for (HeartbeatMasterClient client : clients) {																
-								client.nodeWarn(nType, node);
-								logger.debug("Node hasnt sent Heartbeats for a while [" + nType + ", " + node.getId() + "]");
-								if (tDiff > masterArgs.deadTime) {
-									client.nodeDead(nType, node);
-									nodesToDelete.add(node);
-									logger.debug("Node deemed dead [" + nType + ", " + node.getId() + "]");
-								}
-							}
+							logger.debug("Node hasnt sent Heartbeats for a while [" + nType + ", " + node.getId() + "]");
+							if (tDiff > masterArgs.deadTime) {
+								nodesToDelete.add(node);
+								logger.debug("Node deemed dead [" + nType + ", " + node.getId() + "]");
+							} else {
+								nodesToWarn.add(node);
+							}							
 						}						
 					}
 				}
 				for (HeartbeatNode node : nodesToDelete) {
+					NodeState nodeState = nodeRegistry.get(node.getType()).get(node);					
+					Set<HeartbeatMasterClient> s1 = nodeClients.get(new HeartbeatNode(-1, NodeType.CONTAINER));
+					if (s1 != null) {
+						for (HeartbeatMasterClient c : s1) {
+							c.nodeDead(node, nodeState);
+						}
+					}
+					Set<HeartbeatMasterClient> s2 = nodeClients.get(node);
+					if (s2 != null) {
+						for (HeartbeatMasterClient c : s2) {
+							c.nodeDead(node, nodeState);
+						}
+					}
 					nodeRegistry.get(node.getType()).remove(node);
 				}
+				for (HeartbeatNode node : nodesToWarn) {
+					NodeState nodeState = nodeRegistry.get(node.getType()).get(node);					
+					Set<HeartbeatMasterClient> s1 = nodeClients.get(new HeartbeatNode(-1, NodeType.CONTAINER));
+					if (s1 != null) {
+						for (HeartbeatMasterClient c : s1) {
+							c.nodeWarn(node, nodeState);
+						}
+					}
+					Set<HeartbeatMasterClient> s2 = nodeClients.get(node);
+					if (s2 != null) {
+						for (HeartbeatMasterClient c : s2) {
+							c.nodeWarn(node, nodeState);
+						}
+					}
+				}				
 				
 			}			
 		}, masterArgs.checkPeriod, masterArgs.checkPeriod, TimeUnit.MILLISECONDS);
@@ -139,17 +171,26 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 			m = mTemp;
 		}
 		long cTime = System.currentTimeMillis();		
-		NodeState ns = new NodeState();
+		NodeState nsTemp = new NodeState();
+		HeartbeatNode hKey = new HeartbeatNode(nodeId, nodeType);		
+		NodeState ns = m.putIfAbsent(hKey, nsTemp);
+		boolean isFirst = false;
+		if (ns == null) {
+			ns = nsTemp;
+			isFirst = true;
+		}		
 		ns.timeStamp.set(cTime);
 		ns.host = hbMsg.getHost();
-		ns.port = hbMsg.getCommandPort();		
-		NodeState ns1 = m.putIfAbsent(new HeartbeatNode(nodeId, nodeType), ns);
-		if (ns1 != null) {
-			ns1.timeStamp.set(cTime);
-			ns1.host = hbMsg.getHost();
-			ns1.port = hbMsg.getCommandPort();
-		}
+		ns.port = hbMsg.getCommandPort();			
 		ns.nodeInfo = hbMsg.getNodeInfo();
+		if (isFirst) {
+			Set<HeartbeatMasterClient> cSet = nodeClients.get(hKey);
+			if (cSet != null) {
+				for (HeartbeatMasterClient client : cSet) {
+					client.nodeUp(hKey, ns);
+				}
+			}
+		}
 		return true;
 	}
 	
@@ -175,12 +216,17 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 		HeartbeatMaster heartbeatMaster = new HeartbeatMaster(hbArgs);
 		heartbeatMaster.registerClient(new HeartbeatMasterClient() {
 			@Override
-			public void nodeWarn(NodeType nType, HeartbeatNode node) {
+			public void nodeWarn(HeartbeatNode node, NodeState nodeState) {
 				System.out.println("Client warned of node inactivity !!");
 			}
 			@Override
-			public void nodeDead(NodeType nType, HeartbeatNode node) {
+			public void nodeDead(HeartbeatNode node, NodeState lastNodeState) {
 				System.out.println("Client notified of node death !!");
+			}
+			@Override
+			public void nodeUp(HeartbeatNode node, NodeState nState) {
+				// TODO Auto-generated method stub
+				
 			}
 		});
 		heartbeatMaster.init();

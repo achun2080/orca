@@ -12,6 +12,7 @@ import org.apache.thrift.transport.TNonblockingServerSocket;
 import org.apache.thrift.transport.TNonblockingServerTransport;
 import org.kuttz.orca.hmon.HBSlaveArgs;
 import org.kuttz.orca.hmon.HeartbeatSlave;
+import org.kuttz.orca.hmon.NodeInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +30,9 @@ public class ProxyContainer implements Runnable, TProxyCommandEndPoint.Iface {
 	
 	private volatile boolean hasStarted = false;
 	
-	private volatile int runningPort;	
+	private volatile int runningPort;
+	
+	private volatile NodeInfo nodeInfo = new NodeInfo();
 	
 	public ProxyContainer(ELBArgs elbArgs, HBSlaveArgs hbSlaveArgs) {
 		this.hbSlave = new HeartbeatSlave(hbSlaveArgs);		
@@ -81,12 +84,18 @@ public class ProxyContainer implements Runnable, TProxyCommandEndPoint.Iface {
 
 	// Set ELB Port in the HB msg - to be sent to master 
 	public void setELBPort(int port) {
-		hbSlave.getNodeInfo().setAuxEndPointPort1(port);
+		this.nodeInfo.setAuxEndPointPort1(port);
+		if (this.nodeInfo.isSetAuxEndPointPort1() && this.nodeInfo.isSetAuxEndPointPort2()) {
+			hbSlave.setNodeInfo(this.nodeInfo);
+		}
 	}
 	
 	// Set port to access ELB Command End Point in Hb msg - to be sent to master 
 	public void setELBCommandPort() {
-		hbSlave.getNodeInfo().setAuxEndPointPort2(runningPort);
+		this.nodeInfo.setAuxEndPointPort2(runningPort);
+		if (this.nodeInfo.isSetAuxEndPointPort1() && this.nodeInfo.isSetAuxEndPointPort2()) {
+			hbSlave.setNodeInfo(this.nodeInfo);
+		}
 	}	
 
 	@Override
