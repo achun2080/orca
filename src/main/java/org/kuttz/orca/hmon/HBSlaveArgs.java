@@ -22,10 +22,10 @@ public class HBSlaveArgs {
 	@Parameter(names = "-num_sender_threads", description = "Node Id", required = false)
 	public int numSenderThreads = 1;
 
-	@Parameter(names = "-min_port", description = "Heartbeat Command Endpoint minPort", required = true)
+	@Parameter(names = "-hb_min_port", description = "Heartbeat Command Endpoint minPort", required = true)
 	public int minPort;
 
-	@Parameter(names = "-max_port", description = "Heartbeat Command Endpoint maxPort", required = true)
+	@Parameter(names = "-hb_max_port", description = "Heartbeat Command Endpoint maxPort", required = true)
 	public int maxPort;	
 	
 	public NodeType nodeType;

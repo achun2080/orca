@@ -6,9 +6,7 @@ import org.kuttz.orca.hmon.HeartbeatMasterClient;
 
 public interface OrcaControllerClient {
 	
-	public HeartbeatMasterClient getHeartbeatClient();
-	
-	public void launchContextReady(int nodeId, OrcaLaunchContext launchContext);
+	public HeartbeatMasterClient getHeartbeatClient();	
 	
 	public ExecutorService getExecutorService();
 

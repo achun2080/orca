@@ -50,6 +50,11 @@ public class HeartbeatNode {
 		public volatile NodeInfo nodeInfo;
 		public volatile String host;
 		public volatile int port;
+		@Override
+		public String toString() {
+			return "NodeState [timeStamp=" + timeStamp + ", nodeInfo="
+					+ nodeInfo + ", host=" + host + ", port=" + port + "]";
+		}			
 	}
 
 }

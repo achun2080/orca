@@ -30,7 +30,7 @@ public class OrcaDaemon {
 				System.out.println("[" + df.format(Calendar.getInstance().getTime()) + "] Daemon still running !!");
 			}
 		} catch (Exception e) {
-			
+			e.printStackTrace();
 		}
 		
 	}

@@ -1,6 +1,8 @@
 package org.kuttz.orca.controller;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -9,7 +11,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
@@ -65,6 +66,15 @@ public class OrcaController implements Runnable {
 	
 	public void pleaseDo(ClientRequest req) {
 		this.inQ.add(req);
+	}
+	
+	public int getELBPort() {
+		if (elbHandler != null) {
+			if (elbHandler.state.equals(SlaveState.NODE_RUNNING)) {
+				return elbHandler.elbPort;
+			}
+		}
+		return -1;
 	}
 	
 	public void init() {
@@ -283,10 +293,16 @@ public class OrcaController implements Runnable {
 	 		//vargs.add("-Xrunjdwp:transport=dt_socket,address=8889,server=y,suspend=n");	        
 	        vargs.add("org.kuttz.orca.OrcaDaemon");
 	        
-	        vargs.add("proxy");	        
-//	        vargs.add("1>/tmp/orca-node-stdout" + container.getId().getId());
-//	        vargs.add("2>/tmp/orca-node-stderr" + container.getId().getId());			
-			// Create Proxy command
+	        vargs.add("-proxy");
+	        vargs.add("true");
+	        vargs.add("-elb_min_port");
+	        vargs.add("" + OrcaController.this.ocArgs.elbMinPort);
+	        vargs.add("-elb_max_port");
+	        vargs.add("" + OrcaController.this.ocArgs.elbMaxPort);
+	        addHBSlaveArgs(nodeId, vargs);
+	        vargs.add("> /tmp/orca-proxy-stdout" + nodeId);
+//	        vargs.add("1>/tmp/orca-proxy-stdout" + nodeId);
+//	        vargs.add("2>/tmp/orca-proxy-stderr" + nodeId);
 			
 	        StringBuilder command = new StringBuilder();
 	        for (CharSequence str : vargs) {
@@ -294,19 +310,59 @@ public class OrcaController implements Runnable {
 	        }		
 			return new OrcaLaunchContext(command.toString(), env);
 		}
+				
 		
 		private OrcaLaunchContext createContainerLaunchContext(int nodeId, ContainerArgs containerArgs) {
 			LinkedList<String> vargs = new LinkedList<String>();
 			HashMap<String,String> env = new HashMap<String, String>();				
 			
-			// Create Proxy command
+	        vargs.add("java");
+
+	        //vargs.add("-Xmx" + containerMemory + "m");
+	 		//vargs.add("-Xdebug");
+	 		//vargs.add("-Xrunjdwp:transport=dt_socket,address=8889,server=y,suspend=n");	        
+	        vargs.add("org.kuttz.orca.OrcaDaemon");
+	        
+	        vargs.add("-container");
+	        vargs.add("true");	        
+	        vargs.add("-app_name");
+	        vargs.add("" + OrcaController.this.ocArgs.appName);
+	        vargs.add("-war_location");
+	        vargs.add("" + OrcaController.this.ocArgs.warLocation);
+	        addHBSlaveArgs(nodeId, vargs);
+	        vargs.add("> /tmp/orca-container-stdout" + nodeId);
+//	        vargs.add("1>/tmp/orca-container-stdout" + nodeId);
+//	        vargs.add("2>/tmp/orca-container-stderr" + nodeId);
 			
 	        StringBuilder command = new StringBuilder();
 	        for (CharSequence str : vargs) {
 	            command.append(str).append(" ");
 	        }		
 			return new OrcaLaunchContext(command.toString(), env);		
-		}		
+		}
+		
+		private void addHBSlaveArgs(int nodeId, LinkedList<String> vargs) {
+			vargs.add("-send_period");
+			vargs.add("" + OrcaController.this.ocArgs.hbPeriod);
+			vargs.add("-master_host");
+			try {
+				vargs.add(InetAddress.getLocalHost().getHostName());
+			} catch (UnknownHostException e) {
+				logger.error("Exception while extracting hostname !!", e);
+			}			
+			vargs.add("-master_port");
+			vargs.add("" + OrcaController.this.hbMaster.getRunningPort());
+			vargs.add("-send_timeout");
+			vargs.add("" + (OrcaController.this.ocArgs.hbPeriod / 2));
+			vargs.add("-node_id");
+			vargs.add("" + nodeId);
+			vargs.add("-num_sender_threads");
+			vargs.add("1");
+			vargs.add("-hb_min_port");
+			vargs.add("" + OrcaController.this.ocArgs.hbMinPort);
+			vargs.add("-hb_max_port");
+			vargs.add("" + OrcaController.this.ocArgs.hbMaxPort);
+		}
 	}
 	
 	public class ELBSlaveHandler extends SlaveHandler {
@@ -324,7 +380,8 @@ public class OrcaController implements Runnable {
 		
 		@Override
 		public void nodeUp(HeartbeatNode node, NodeState nodeState) {
-			if (node.getId() == this.slaveNode.getId()) {
+			if ((node.getId() == this.slaveNode.getId()) 
+					&& (!this.state.equals(SlaveState.NODE_RUNNING))) {
 				super.nodeUp(node, nodeState);
 				this.elbHost = nodeState.host;
 				this.elbPort = nodeState.nodeInfo.getAuxEndPointPort1();
@@ -334,6 +391,7 @@ public class OrcaController implements Runnable {
 			} else {
 				try {
 					// TODO : handle weights
+					logger.info("ELB Recieved NODE up from [" + node + "]");
 					addNode(nodeState.host, nodeState.nodeInfo.getAuxEndPointPort1(), 1);
 				} catch (IOException e) {
 					logger.error("ELB SlaveHandler could not add Node [" + nodeState.host + ", " + nodeState.nodeInfo.getAuxEndPointPort1() + "]");

@@ -184,7 +184,13 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 		ns.port = hbMsg.getCommandPort();			
 		ns.nodeInfo = hbMsg.getNodeInfo();
 		if (isFirst) {
-			Set<HeartbeatMasterClient> cSet = nodeClients.get(hKey);
+			Set<HeartbeatMasterClient> s1 = nodeClients.get(new HeartbeatNode(-1, NodeType.CONTAINER));
+			if (s1 != null) {
+				for (HeartbeatMasterClient c : s1) {
+					c.nodeUp(hKey, ns);
+				}
+			}			
+			Set<HeartbeatMasterClient> cSet = nodeClients.get(hKey);			
 			if (cSet != null) {
 				for (HeartbeatMasterClient client : cSet) {
 					client.nodeUp(hKey, ns);
