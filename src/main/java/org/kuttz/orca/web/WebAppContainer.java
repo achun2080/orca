@@ -11,15 +11,15 @@ import org.mortbay.jetty.webapp.WebAppContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class WebContainer implements Runnable {
+public class WebAppContainer implements Runnable {
 	
-	private static Logger logger = LoggerFactory.getLogger(WebContainer.class);
+	private static Logger logger = LoggerFactory.getLogger(WebAppContainer.class);
 	
 	private final HeartbeatSlave hbSlave;
 	
 	private Server jettyServer;
 	
-	private final ContainerArgs containerArgs;
+	private final WebAppArgs containerArgs;
 	
 	private ExecutorService exService;
 	
@@ -27,7 +27,7 @@ public class WebContainer implements Runnable {
 	
 	private volatile int runningPort;
 	
-	public WebContainer(ContainerArgs containerArgs, HBSlaveArgs hbSlaveArgs) {
+	public WebAppContainer(WebAppArgs containerArgs, HBSlaveArgs hbSlaveArgs) {
 		this.hbSlave = new HeartbeatSlave(hbSlaveArgs);
 		this.containerArgs = containerArgs;
 	}

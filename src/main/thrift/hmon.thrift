@@ -41,5 +41,8 @@ service THeartbeatEndPoint {
 
 service THeartbeatCommandEndPoint {
     /** Notify Slave of change in Heartbeat End point */
-    bool changeEndPoint(1: string host, 2: i32 port)
+    bool changeEndPoint(1: string host, 2: i32 port),
+
+    /** Kill self !!*/
+    bool killSelf()
 }

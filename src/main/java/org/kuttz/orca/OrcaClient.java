@@ -259,6 +259,8 @@ public class OrcaClient extends YarnClientImpl{
 	
 	private boolean monitorApplication(ApplicationId appId) throws YarnRemoteException {
 		
+		int numRunning = 5;
+		
 		while(true) {
 			try {
 			    Thread.sleep(10000);
@@ -278,6 +280,14 @@ public class OrcaClient extends YarnClientImpl{
 			 
 			 YarnApplicationState state = report.getYarnApplicationState();
 			 FinalApplicationStatus dsStatus = report.getFinalApplicationStatus();
+			 if (YarnApplicationState.RUNNING == state) {
+				 numRunning--;
+				 if (numRunning < 1) {
+					 logger.info("Looks like Application is Running fine.. Client signing off !!");
+					 return true;
+				 }
+			 }
+			 
 			 if (YarnApplicationState.FINISHED == state) {
 			     if (FinalApplicationStatus.SUCCEEDED == dsStatus) {
 			         logger.info("Application has completed successfully. Breaking monitoring loop");
@@ -292,6 +302,8 @@ public class OrcaClient extends YarnClientImpl{
 			             + dsStatus.toString() + ". Breaking monitoring loop");
 			     return false;
 			 }
+			 
+			 
 			 
 //			 if ((yarnArgs.timeout != -1) && (System.currentTimeMillis() > (clientStartTime + yarnArgs.timeout))) {
 //			     logger.info("Reached client specified timeout for application. Killing application");

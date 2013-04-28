@@ -9,9 +9,9 @@ import static org.jboss.netty.channel.Channels.*;
 public class ELBPipelineFactory implements ChannelPipelineFactory {
 	
 	private ClientSocketChannelFactory cf;
-	private OrcaELB elb;
+	private ELB elb;
 
-	public ELBPipelineFactory(ClientSocketChannelFactory cf, OrcaELB elb) {
+	public ELBPipelineFactory(ClientSocketChannelFactory cf, ELB elb) {
 		this.cf = cf;
 		this.elb = elb;
 	}

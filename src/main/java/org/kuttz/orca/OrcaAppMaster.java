@@ -1,19 +1,25 @@
 package org.kuttz.orca;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Vector;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -27,6 +33,7 @@ import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.ContainerManager;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
+import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationMasterRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
@@ -35,6 +42,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
+import org.apache.hadoop.yarn.api.records.FinalApplicationStatus;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
@@ -46,16 +54,22 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
+import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 import org.kuttz.orca.controller.OrcaController;
+import org.kuttz.orca.controller.OrcaController.ControllerRequest;
+import org.kuttz.orca.controller.OrcaController.ControllerRequest.ReqType;
+import org.kuttz.orca.controller.OrcaController.Node;
 import org.kuttz.orca.controller.OrcaControllerArgs;
 import org.kuttz.orca.controller.OrcaControllerClient;
 import org.kuttz.orca.controller.OrcaLaunchContext;
-import org.kuttz.orca.controller.OrcaController.ControllerRequest;
-import org.kuttz.orca.controller.OrcaController.Node;
-import org.kuttz.orca.controller.OrcaController.ControllerRequest.ReqType;
 import org.kuttz.orca.hmon.HeartbeatMasterClient;
 import org.kuttz.orca.hmon.HeartbeatNode;
 import org.kuttz.orca.hmon.HeartbeatNode.NodeState;
+import org.mortbay.jetty.HttpConnection;
+import org.mortbay.jetty.Request;
+import org.mortbay.jetty.Server;
+import org.mortbay.jetty.handler.AbstractHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,8 +101,6 @@ public class OrcaAppMaster implements OrcaControllerClient, HeartbeatMasterClien
 	private final String appMasterHostname = "";
 	// Port on which the app master listens for status update requests from clients
 	private final int appMasterRpcPort = 0;
-	// Tracking url to which app master publishes info for clients to monitor
-	private final String appMasterTrackingUrl = "";
 	
 	// Containers to be released
 	private final CopyOnWriteArrayList<ContainerId> releasedContainers = new CopyOnWriteArrayList<ContainerId>();	
@@ -98,6 +110,8 @@ public class OrcaAppMaster implements OrcaControllerClient, HeartbeatMasterClien
 	private ExecutorService tp = Executors.newCachedThreadPool();
 	
 	private RequestContainerRunnable requester = new RequestContainerRunnable();
+	
+	private TrackingService trackingService = new TrackingService();
 	
 	@Override
 	public HeartbeatMasterClient getHeartbeatClient() {
@@ -154,6 +168,7 @@ public class OrcaAppMaster implements OrcaControllerClient, HeartbeatMasterClien
 		rpc = YarnRPC.create(conf);		
 		
 		this.tp.submit(requester);
+		this.tp.submit(trackingService);
 		this.oc = new OrcaController(this.orcaArgs, this);
 	}
 	
@@ -195,7 +210,7 @@ public class OrcaAppMaster implements OrcaControllerClient, HeartbeatMasterClien
 			containerMemory = maxMem;
 		}
 		
-		while(true) {
+		while(true && (!tp.isShutdown())) {
 			ControllerRequest req = null;
 			try {
 				req = oc.getNextRequest();
@@ -314,9 +329,24 @@ public class OrcaAppMaster implements OrcaControllerClient, HeartbeatMasterClien
 	    appMasterRequest.setApplicationAttemptId(appAttemptID);
 	    appMasterRequest.setHost(appMasterHostname);
 	    appMasterRequest.setRpcPort(appMasterRpcPort);
-	    appMasterRequest.setTrackingUrl(appMasterTrackingUrl);
+	    try {
+			appMasterRequest.setTrackingUrl(trackingService.getTrackingUrl());
+		} catch (UnknownHostException e) {
+			logger.error("Got error retriving hostname !!", e);
+		}
 
 	    return resourceManager.registerApplicationMaster(appMasterRequest);
+	}
+	
+	private void killApp() throws YarnRemoteException {
+	    // When the application completes, it should send a finish application signal
+	    // to the RM
+	    logger.info("Application completed. Signalling finish to RM");
+
+	    FinishApplicationMasterRequest finishReq = Records.newRecord(FinishApplicationMasterRequest.class);
+	    finishReq.setAppAttemptId(appAttemptID);
+	    finishReq.setFinishApplicationStatus(FinalApplicationStatus.KILLED);
+	    resourceManager.finishApplicationMaster(finishReq);
 	}
 
 	@Override
@@ -399,7 +429,7 @@ public class OrcaAppMaster implements OrcaControllerClient, HeartbeatMasterClien
 			}
 			
 		}
-	}
+	}	
 	
 	private class LaunchContainerRunnable implements Runnable {
 
@@ -503,6 +533,90 @@ public class OrcaAppMaster implements OrcaControllerClient, HeartbeatMasterClien
 	        }
 	        
 		}
-	}	
+	}
+	
+	public class TrackingService extends AbstractHandler implements Runnable {
+		
+		private int runningPort = -1;
+		private Server jettyServer = null;
+		private boolean hasStarted = false;
+
+		@Override
+		public void run() {
+//			WebAppContext webApp = new WebAppContext();
+//			webApp.setContextPath("/orca_app");
+//			webApp.setHandler(this);
+			
+			// Let Jetty start on any available port
+			this.jettyServer = new Server(0);
+			this.jettyServer.setHandler(this);
+			try {
+				this.jettyServer.start();
+				this.hasStarted = true;
+				this.runningPort = (this.jettyServer.getConnectors()[0]).getLocalPort();								
+//				OrcaAppMaster.this.appMasterTrackingUrl = 
+//						"http://" + InetAddress.getLocalHost().getHostName() + ":" + this.runningPort 
+//						+ "/orca_app/status";
+				logger.info("\n\nStarting Tracking Service on port [" + this.runningPort + "]\n\n");
+			} catch (Exception e) {
+				logger.error("Could not start Web Container !!", e);
+				System.exit(-1);
+			}
+			
+			try {
+				this.jettyServer.join();
+			} catch (InterruptedException e) {
+				logger.error("Web Container interrupted!!", e);
+			}
+			
+		}
+		
+		public int getRunningPort() {
+			return runningPort;
+		}
+		
+		public boolean isRunning() {
+			return hasStarted;
+		}
+		
+		public String getTrackingUrl() throws UnknownHostException {
+			return "http://" + InetAddress.getLocalHost().getHostName() + ":" + this.runningPort 
+			+ "/orca_app/status";
+		}
+
+		@Override
+		public void handle(String target, HttpServletRequest request,
+				HttpServletResponse response, int dispatch) throws IOException,
+				ServletException {
+	        response.setContentType("text/json;charset=utf-8");
+	        response.setStatus(HttpServletResponse.SC_OK);
+
+	        Request base_request = (request instanceof Request) ? (Request)request : HttpConnection.getCurrentConnection().getRequest();
+	        base_request.setHandled(true);
+	        
+	        JSONObject jResp = new JSONObject();	        
+	        try {
+	        	if (target.endsWith("status")) {
+	        		jResp.put("num_containers_running", OrcaAppMaster.this.oc.getNumRunningContainers());
+					jResp.put("num_containers_died", OrcaAppMaster.this.oc.getNumContainersDied());
+					jResp.put("proxy_host", OrcaAppMaster.this.oc.getProxyHost());
+					jResp.put("proxy_port", new Integer(OrcaAppMaster.this.oc.getProxyPort()));					
+	        	} else if (target.endsWith("kill")) {
+	        		OrcaAppMaster.this.oc.kill();
+	        		Thread.sleep(5000);
+	        		OrcaAppMaster.this.killApp();
+	        		OrcaAppMaster.this.tp.shutdownNow();
+	        		logger.info("\nRecieved Request to Kill self !!\n");
+	        		jResp.put("status", "axed");
+	        	}
+	        } catch (Exception e) {
+	        	// Ignore for the time being..
+	        }
+	        
+	        response.getWriter().println(jResp.toString());
+			
+		}
+		
+	}
 	
 }

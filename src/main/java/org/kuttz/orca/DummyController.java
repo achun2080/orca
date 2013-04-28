@@ -13,11 +13,11 @@ import org.kuttz.orca.hmon.HeartbeatMaster;
 import org.kuttz.orca.hmon.HeartbeatNode.NodeState;
 import org.kuttz.orca.hmon.NodeType;
 import org.kuttz.orca.proxy.ELBArgs;
-import org.kuttz.orca.proxy.ProxyContainer;
+import org.kuttz.orca.proxy.Proxy;
 import org.kuttz.orca.proxy.TProxyCommandEndPoint;
 import org.kuttz.orca.proxy.TProxyCommandEndPoint.Client;
-import org.kuttz.orca.web.ContainerArgs;
-import org.kuttz.orca.web.WebContainer;
+import org.kuttz.orca.web.WebAppArgs;
+import org.kuttz.orca.web.WebAppContainer;
 
 public class DummyController {
 	
@@ -49,13 +49,13 @@ public class DummyController {
 		
 	}
 
-	private static WebContainer startWebContainer(ExecutorService tp, int webNodeId, int hbMasterPort)
+	private static WebAppContainer startWebContainer(ExecutorService tp, int webNodeId, int hbMasterPort)
 			throws InterruptedException {
 		HBSlaveArgs containerHbSlaveArgs = createHbSlaveArgs(NodeType.CONTAINER, webNodeId, hbMasterPort);
-		ContainerArgs containerArgs = new ContainerArgs();
+		WebAppArgs containerArgs = new WebAppArgs();
 		containerArgs.appName = "canary";
 		containerArgs.warLocation = "/Users/suresa1/tomcat_home/webapps/gphdmgr-api.war";
-		WebContainer webContainer = new WebContainer(containerArgs, containerHbSlaveArgs);
+		WebAppContainer webContainer = new WebAppContainer(containerArgs, containerHbSlaveArgs);
 		webContainer.init();
 		tp.submit(webContainer);		
 		while (!webContainer.isRunning()) {
@@ -85,13 +85,13 @@ public class DummyController {
 		return cInfo;
 	}	
 
-	private static ProxyContainer startProxyContainer(ExecutorService tp, int nodeId, int hbMasterPort)
+	private static Proxy startProxyContainer(ExecutorService tp, int nodeId, int hbMasterPort)
 			throws InterruptedException {
 		HBSlaveArgs proxyHbSlaveArgs = createHbSlaveArgs(NodeType.PROXY, nodeId, hbMasterPort);
 		ELBArgs elbArgs = new ELBArgs();
 		elbArgs.minPort = 8100;
 		elbArgs.maxPort = 8200;
-		ProxyContainer proxyContainer = new ProxyContainer(elbArgs, proxyHbSlaveArgs);
+		Proxy proxyContainer = new Proxy(elbArgs, proxyHbSlaveArgs);
 		proxyContainer.init();
 		tp.submit(proxyContainer);
 		while (!proxyContainer.isRunning()) {

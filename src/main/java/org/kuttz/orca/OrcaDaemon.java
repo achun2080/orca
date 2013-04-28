@@ -9,9 +9,9 @@ import java.util.concurrent.TimeUnit;
 import org.kuttz.orca.hmon.HBSlaveArgs;
 import org.kuttz.orca.hmon.NodeType;
 import org.kuttz.orca.proxy.ELBArgs;
-import org.kuttz.orca.proxy.ProxyContainer;
-import org.kuttz.orca.web.ContainerArgs;
-import org.kuttz.orca.web.WebContainer;
+import org.kuttz.orca.proxy.Proxy;
+import org.kuttz.orca.web.WebAppArgs;
+import org.kuttz.orca.web.WebAppContainer;
 
 public class OrcaDaemon {
 
@@ -35,12 +35,12 @@ public class OrcaDaemon {
 		
 	}
 	
-	public static ProxyContainer startProxyContainer(ExecutorService tp, String[] args)
+	public static Proxy startProxyContainer(ExecutorService tp, String[] args)
 			throws InterruptedException {
 		HBSlaveArgs proxyHbSlaveArgs = createHbSlaveArgs(args, NodeType.PROXY);
 		ELBArgs elbArgs = new ELBArgs();
 		Tools.parseArgs(elbArgs, args);
-		ProxyContainer proxyContainer = new ProxyContainer(elbArgs, proxyHbSlaveArgs);
+		Proxy proxyContainer = new Proxy(elbArgs, proxyHbSlaveArgs);
 		proxyContainer.init();
 		tp.submit(proxyContainer);
 		while (!proxyContainer.isRunning()) {
@@ -50,12 +50,12 @@ public class OrcaDaemon {
 		return proxyContainer;
 	}
 	
-	public static WebContainer startWebContainer(ExecutorService tp, String[] args)
+	public static WebAppContainer startWebContainer(ExecutorService tp, String[] args)
 			throws InterruptedException {
 		HBSlaveArgs containerHbSlaveArgs = createHbSlaveArgs(args, NodeType.CONTAINER);
-		ContainerArgs containerArgs = new ContainerArgs();
+		WebAppArgs containerArgs = new WebAppArgs();
 		Tools.parseArgs(containerArgs, args);
-		WebContainer webContainer = new WebContainer(containerArgs, containerHbSlaveArgs);
+		WebAppContainer webContainer = new WebAppContainer(containerArgs, containerHbSlaveArgs);
 		webContainer.init();
 		tp.submit(webContainer);		
 		while (!webContainer.isRunning()) {

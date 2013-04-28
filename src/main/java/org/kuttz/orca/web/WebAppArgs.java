@@ -2,7 +2,7 @@ package org.kuttz.orca.web;
 
 import com.beust.jcommander.Parameter;
 
-public class ContainerArgs {
+public class WebAppArgs {
 	
 	@Parameter(names = "-app_name", description = "Application Name", required = true)
 	public String appName;

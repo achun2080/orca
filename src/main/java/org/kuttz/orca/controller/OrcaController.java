@@ -25,10 +25,11 @@ import org.kuttz.orca.hmon.HeartbeatMasterClient;
 import org.kuttz.orca.hmon.HeartbeatNode;
 import org.kuttz.orca.hmon.HeartbeatNode.NodeState;
 import org.kuttz.orca.hmon.NodeType;
+import org.kuttz.orca.hmon.THeartbeatCommandEndPoint;
 import org.kuttz.orca.proxy.ELBArgs;
 import org.kuttz.orca.proxy.TProxyCommandEndPoint;
 import org.kuttz.orca.proxy.TProxyCommandEndPoint.Client;
-import org.kuttz.orca.web.ContainerArgs;
+import org.kuttz.orca.web.WebAppArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,13 +69,22 @@ public class OrcaController implements Runnable {
 		return this.outQ.take();
 	}
 		
-	public int getELBPort() {
+	public int getProxyPort() {
 		if (elbHandler != null) {
 			if (elbHandler.state.equals(SlaveState.NODE_RUNNING)) {
 				return elbHandler.elbPort;
 			}
 		}
 		return -1;
+	}
+	
+	public String getProxyHost() {
+		if (elbHandler != null) {
+			if (elbHandler.state.equals(SlaveState.NODE_RUNNING)) {
+				return elbHandler.elbHost;
+			}
+		}
+		return "";
 	}
 	
 	public void scaleUpBy(int numContainers) {
@@ -132,8 +142,8 @@ public class OrcaController implements Runnable {
 		// But must handle request to add/remove nodes
 	}
 
-	private ContainerArgs createContainerLaunchArgs(OrcaControllerArgs ocArgs) {
-		ContainerArgs containerArgs = new ContainerArgs();
+	private WebAppArgs createContainerLaunchArgs(OrcaControllerArgs ocArgs) {
+		WebAppArgs containerArgs = new WebAppArgs();
 		containerArgs.appName = ocArgs.appName;
 		containerArgs.warLocation = ocArgs.warLocation;
 		return containerArgs;
@@ -151,7 +161,17 @@ public class OrcaController implements Runnable {
 	}
 	
 	public int getNumRunningContainers() {
-		return this.numContainersRunning.get();
+		return this.numContainersRunning.get();		
+	}
+	
+	public int getNumContainersDied() {
+		return this.numContainersDied.get();		
+	}
+	
+	public void kill() {
+		for (SlaveHandler slave : slaves) {
+			slave.kill();
+		}
 	}
 	
 	private HeartbeatMaster startHbMaster(OrcaControllerClient client) throws InterruptedException {
@@ -249,6 +269,9 @@ public class OrcaController implements Runnable {
 		private final NodeType nType;
 		private final Object launchArgs;
 		
+		private String sHost;
+		private int sPort;
+		
 		protected volatile SlaveState state = SlaveState.NOT_STARTED;
 		
 		public SlaveHandler(NodeType nType, Object launchArgs) {
@@ -259,7 +282,7 @@ public class OrcaController implements Runnable {
 		private void launchNode(Node preInitNode) {
 			OrcaLaunchContext lContext = null;
 			if (NodeType.CONTAINER.equals(nType)) {
-				lContext = createContainerLaunchContext(preInitNode.getId(), (ContainerArgs)launchArgs);
+				lContext = createContainerLaunchContext(preInitNode.getId(), (WebAppArgs)launchArgs);
 			} else {
 				lContext = createProxyLaunchContext(preInitNode.getId(), (ELBArgs)launchArgs);
 			}
@@ -286,12 +309,26 @@ public class OrcaController implements Runnable {
 			return this.state;
 		}
 		
+		public void kill() {
+			TTransport transport = new TFramedTransport(new TSocket(sHost, sPort));
+			try {
+				transport.open();
+				TBinaryProtocol protocol = new TBinaryProtocol(transport);
+				THeartbeatCommandEndPoint.Client cl = new THeartbeatCommandEndPoint.Client(protocol);
+				cl.killSelf();
+			} catch (Exception e) {
+				logger.error("Could not send Kill signal !!", e);
+			}
+		}
+		
 		/** Heartbeat Callback */		
 		@Override
 		public void nodeUp(HeartbeatNode node, NodeState nodeState) {
 			if (nType.equals(NodeType.CONTAINER)) {
 				OrcaController.this.numContainersRunning.incrementAndGet();
 			}
+			this.sHost = nodeState.host;
+			this.sPort = nodeState.port;
 			this.state = SlaveState.NODE_RUNNING;
 		}
 		
@@ -303,6 +340,7 @@ public class OrcaController implements Runnable {
 		@Override
 		public void nodeDead(HeartbeatNode node, NodeState lastNodeState) {
 			OrcaController.this.numContainersDied.incrementAndGet();
+			OrcaController.this.numContainersRunning.decrementAndGet();
 			this.slaveNode = null;
 			this.state = SlaveState.NOT_STARTED;
 		}
@@ -336,7 +374,7 @@ public class OrcaController implements Runnable {
 		}
 				
 		
-		private OrcaLaunchContext createContainerLaunchContext(int nodeId, ContainerArgs containerArgs) {
+		private OrcaLaunchContext createContainerLaunchContext(int nodeId, WebAppArgs containerArgs) {
 			LinkedList<String> vargs = new LinkedList<String>();
 			HashMap<String,String> env = new HashMap<String, String>();				
 			
@@ -487,13 +525,17 @@ public class OrcaController implements Runnable {
 		public int getElbPort() {
 			return this.elbPort;
 		}
+		
+		public String getElbHost() {
+			return this.elbHost;
+		}
 	}
 	
 	public class ContainerSlaveHandler extends SlaveHandler {
 
 		private int runningPort = -1;
 		
-		public ContainerSlaveHandler(ContainerArgs launchArgs) {
+		public ContainerSlaveHandler(WebAppArgs launchArgs) {
 			super(NodeType.CONTAINER, launchArgs);
 		}
 		

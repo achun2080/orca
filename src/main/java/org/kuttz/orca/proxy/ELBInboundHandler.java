@@ -14,7 +14,7 @@ import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.channel.socket.ClientSocketChannelFactory;
-import org.kuttz.orca.proxy.OrcaELB.ELBNode;
+import org.kuttz.orca.proxy.ELB.ELBNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +23,7 @@ public class ELBInboundHandler extends SimpleChannelUpstreamHandler {
 	private static Logger logger = LoggerFactory.getLogger(ELBInboundHandler.class);
 	
 	private final ClientSocketChannelFactory cf;
-	private final OrcaELB elb;
+	private final ELB elb;
 	
 	private volatile Channel outboundChannel;
 	
@@ -32,7 +32,7 @@ public class ELBInboundHandler extends SimpleChannelUpstreamHandler {
     // See the related discussion: http://markmail.org/message/x7jc6mqx6ripynqf
     final Object trafficLock = new Object();	
 	
-	public ELBInboundHandler(ClientSocketChannelFactory cf, OrcaELB elb) {
+	public ELBInboundHandler(ClientSocketChannelFactory cf, ELB elb) {
 		this.cf = cf;
 		this.elb = elb;
 	}

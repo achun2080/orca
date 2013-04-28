@@ -16,11 +16,11 @@ import org.kuttz.orca.hmon.NodeInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ProxyContainer implements Runnable, TProxyCommandEndPoint.Iface {
+public class Proxy implements Runnable, TProxyCommandEndPoint.Iface {
 	
-	private static Logger logger = LoggerFactory.getLogger(ProxyContainer.class);
+	private static Logger logger = LoggerFactory.getLogger(Proxy.class);
 		
-	private final OrcaELB orcaELB;
+	private final ELB orcaELB;
 	
 	private final ELBArgs elbArgs;
 	
@@ -34,9 +34,9 @@ public class ProxyContainer implements Runnable, TProxyCommandEndPoint.Iface {
 	
 	private volatile NodeInfo nodeInfo = new NodeInfo();
 	
-	public ProxyContainer(ELBArgs elbArgs, HBSlaveArgs hbSlaveArgs) {
+	public Proxy(ELBArgs elbArgs, HBSlaveArgs hbSlaveArgs) {
 		this.hbSlave = new HeartbeatSlave(hbSlaveArgs);		
-		this.orcaELB = new OrcaELB(elbArgs, this);
+		this.orcaELB = new ELB(elbArgs, this);
 		this.elbArgs = elbArgs;
 	}
 
@@ -56,7 +56,7 @@ public class ProxyContainer implements Runnable, TProxyCommandEndPoint.Iface {
             TNonblockingServer.Args args = new TNonblockingServer.Args(trans);
             args.transportFactory(new TFramedTransport.Factory());
             args.protocolFactory(new TBinaryProtocol.Factory());
-            args.processor(new TProxyCommandEndPoint.Processor<ProxyContainer>(this));
+            args.processor(new TProxyCommandEndPoint.Processor<Proxy>(this));
             TNonblockingServer server = new TNonblockingServer(args);
 			server.serve();
 		} catch (Exception e) {

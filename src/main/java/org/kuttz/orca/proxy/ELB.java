@@ -12,34 +12,34 @@ import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OrcaELB implements Runnable {
+public class ELB implements Runnable {
 	
-	private static Logger logger = LoggerFactory.getLogger(OrcaELB.class);
+	private static Logger logger = LoggerFactory.getLogger(ELB.class);
 			
 	private int runningPort;
 	
 	private volatile boolean hasStarted;
 	
-	private TreeSet<ELBNode> nodeSet = new TreeSet<OrcaELB.ELBNode>();
+	private TreeSet<ELBNode> nodeSet = new TreeSet<ELB.ELBNode>();
 	
 	private ELBNode currentNode = null;
 	
 	private ELBArgs elbArgs = null;
 	
-	private final ProxyContainer container;
+	private final Proxy container;
 	
 
-	public OrcaELB(ELBArgs args, ProxyContainer container) {
+	public ELB(ELBArgs args, Proxy container) {
 		this.elbArgs = args;
 		this.container = container;
 	}
 	
-	public OrcaELB addNode(String host, int port) {
+	public ELB addNode(String host, int port) {
 		nodeSet.add(new ELBNode(host, port));
 		return this;
 	}	
 	
-	public OrcaELB removeNode(String host, int port) {
+	public ELB removeNode(String host, int port) {
 		nodeSet.remove(new ELBNode(host, port));
 		return this;
 	}

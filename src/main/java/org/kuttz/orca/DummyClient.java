@@ -84,7 +84,7 @@ public class DummyClient implements OrcaControllerClient, HeartbeatMasterClient 
 				}
 			}
 			if (!printPort) {
-				int elbPort = oc.getELBPort();
+				int elbPort = oc.getProxyPort();
 				if (elbPort > -1) {
 					printPort = true;
 				}

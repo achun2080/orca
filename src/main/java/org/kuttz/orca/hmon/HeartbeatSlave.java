@@ -121,10 +121,18 @@ public class HeartbeatSlave implements THeartbeatCommandEndPoint.Iface, Runnable
 		return true;
 	}	
 	
+	@Override
+	public boolean killSelf() throws TException {
+		logger.info("Being asked to kill self.. goodbye world !!");
+		System.exit(0);
+		return false;
+	}
+
 	public static void main(String[] args) {
 //		HeartbeatSlave heartbeatSlave = new HeartbeatSlave();
 //		heartbeatSlave.init(NodeType.CONTAINER, Integer.parseInt(args[0]), 1, Integer.parseInt(args[1]), Integer.parseInt(args[2]), "localhost", 8811);
 //		heartbeatSlave.run();
 	}
+
 
 }
