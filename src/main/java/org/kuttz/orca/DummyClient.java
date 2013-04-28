@@ -79,9 +79,6 @@ public class DummyClient implements OrcaControllerClient, HeartbeatMasterClient 
 					System.out.println("Classpath : " + cp);
 					Process cmdProc = Runtime.getRuntime().exec(new String[]{"/bin/sh", "-c", launchContext.getShellCommand()}, 
 							new String[] {"CLASSPATH=" + cp});
-//					cmdProc.waitFor();
-//					int exitValue = cmdProc.exitValue();
-//					System.out.println("Exit Value : " + exitValue);
 				} catch (IOException e) {
 					e.printStackTrace();
 				}

@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,6 +47,8 @@ public class OrcaController implements Runnable {
 	
 	private volatile AtomicInteger numContainersRunning = new AtomicInteger(0);
 	
+	private volatile AtomicInteger numContainersDied = new AtomicInteger(0);
+	
 	private List<SlaveHandler> slaves = new ArrayList<OrcaController.SlaveHandler>();
 	private ELBSlaveHandler elbHandler;
 	
@@ -63,11 +67,7 @@ public class OrcaController implements Runnable {
 	public ControllerRequest getNextRequest() throws InterruptedException {
 		return this.outQ.take();
 	}
-	
-	public void pleaseDo(ClientRequest req) {
-		this.inQ.add(req);
-	}
-	
+		
 	public int getELBPort() {
 		if (elbHandler != null) {
 			if (elbHandler.state.equals(SlaveState.NODE_RUNNING)) {
@@ -76,6 +76,14 @@ public class OrcaController implements Runnable {
 		}
 		return -1;
 	}
+	
+	public void scaleUpBy(int numContainers) {
+		this.inQ.add(new ClientRequest(numContainers));
+	}
+	
+	public void scaleDownBy(int numContainers) {
+		this.inQ.add(new ClientRequest(-1 * numContainers));
+	}	
 	
 	public void init() {
 		try {
@@ -174,6 +182,12 @@ public class OrcaController implements Runnable {
 	 */
 	public static class ClientRequest {
 		
+		public final int scaleNum;
+		
+		public ClientRequest(int scaleNum) {
+			this.scaleNum = scaleNum;
+		}
+		
 	}
 	
 	public static class ControllerRequest {
@@ -184,6 +198,7 @@ public class OrcaController implements Runnable {
 		
 		private final ReqType type;
 		private volatile Node response;
+		private volatile Node requestNode;  
 		private OrcaLaunchContext launchContext;
 		private SlaveHandler handler;
 		
@@ -192,12 +207,20 @@ public class OrcaController implements Runnable {
 			this.handler = handler;
 		}
 		
-		public ControllerRequest(OrcaLaunchContext lc) {
+		public ControllerRequest(OrcaLaunchContext lc, Node node) {
 			this.type = ReqType.LAUNCH;
 			this.launchContext = lc;
+			this.requestNode = node;
 		}		
 		
 		public ReqType getType() { return type; }
+		
+		public Node getRequestNode() {
+			if (this.type.equals(ReqType.CONTAINER)) {
+				return null;
+			}
+			return requestNode;
+		}
 		
 		// Has to be called by AM
 		public void setResponse(Node nodeResp) {
@@ -222,7 +245,7 @@ public class OrcaController implements Runnable {
 	// Need to create a slaveHandler per container (proxy/webContainer).. and register with controller
 	public abstract class SlaveHandler implements HeartbeatMasterClient {		
 		
-		protected Node slaveNode = null;
+		protected volatile Node slaveNode = null;
 		private final NodeType nType;
 		private final Object launchArgs;
 		
@@ -240,7 +263,7 @@ public class OrcaController implements Runnable {
 			} else {
 				lContext = createProxyLaunchContext(preInitNode.getId(), (ELBArgs)launchArgs);
 			}
-			ControllerRequest lRequest = new ControllerRequest(lContext);
+			ControllerRequest lRequest = new ControllerRequest(lContext, preInitNode);
 			// Register for heartbeat for this node
 			OrcaController.this.hbMaster.registerClient(preInitNode.getId(), nType, this);
 			OrcaController.this.outQ.add(lRequest);
@@ -279,7 +302,9 @@ public class OrcaController implements Runnable {
 		
 		@Override
 		public void nodeDead(HeartbeatNode node, NodeState lastNodeState) {
-			// TODO Auto-generated method stub			
+			OrcaController.this.numContainersDied.incrementAndGet();
+			this.slaveNode = null;
+			this.state = SlaveState.NOT_STARTED;
 		}
 		
 		private OrcaLaunchContext createProxyLaunchContext(int nodeId, ELBArgs elbArgs) {
@@ -300,9 +325,8 @@ public class OrcaController implements Runnable {
 	        vargs.add("-elb_max_port");
 	        vargs.add("" + OrcaController.this.ocArgs.elbMaxPort);
 	        addHBSlaveArgs(nodeId, vargs);
-	        vargs.add("> /tmp/orca-proxy-stdout" + nodeId);
-//	        vargs.add("1>/tmp/orca-proxy-stdout" + nodeId);
-//	        vargs.add("2>/tmp/orca-proxy-stderr" + nodeId);
+	        vargs.add("1>/tmp/orca-proxy-stdout" + nodeId);
+	        vargs.add("2>/tmp/orca-proxy-stderr" + nodeId);
 			
 	        StringBuilder command = new StringBuilder();
 	        for (CharSequence str : vargs) {
@@ -330,9 +354,8 @@ public class OrcaController implements Runnable {
 	        vargs.add("-war_location");
 	        vargs.add("" + OrcaController.this.ocArgs.warLocation);
 	        addHBSlaveArgs(nodeId, vargs);
-	        vargs.add("> /tmp/orca-container-stdout" + nodeId);
-//	        vargs.add("1>/tmp/orca-container-stdout" + nodeId);
-//	        vargs.add("2>/tmp/orca-container-stderr" + nodeId);
+	        vargs.add("1>/tmp/orca-container-stdout" + nodeId);
+	        vargs.add("2>/tmp/orca-container-stderr" + nodeId);
 			
 	        StringBuilder command = new StringBuilder();
 	        for (CharSequence str : vargs) {
@@ -387,14 +410,28 @@ public class OrcaController implements Runnable {
 				this.elbPort = nodeState.nodeInfo.getAuxEndPointPort1();
 				this.commandPort = nodeState.nodeInfo.getAuxEndPointPort2();
 				// Notify ELB of any new nodes going up/down
-				OrcaController.this.hbMaster.registerClient(this);
+				Map<HeartbeatNode, NodeState> existingNodes = OrcaController.this.hbMaster.registerClient(this);
+				for (Entry<HeartbeatNode, NodeState> e : existingNodes.entrySet()) {
+					try {
+						if (e.getKey().getId() != this.slaveNode.getId()) {
+							logger.info("ELB Recieved Existing NODE up from [" 
+									+ e.getValue().host + ", " 
+									+ e.getValue().nodeInfo.getAuxEndPointPort1() + "]");
+							addNode(e.getValue().host, e.getValue().nodeInfo.getAuxEndPointPort1(), 1);
+						}
+					} catch (IOException ex) {
+						logger.error("ELB SlaveHandler could not add Node [" + e.getValue().host + ", " + e.getValue().nodeInfo.getAuxEndPointPort1() + "]", e);
+					}					
+				}
 			} else {
 				try {
 					// TODO : handle weights
-					logger.info("ELB Recieved NODE up from [" + node + "]");
+					logger.info("ELB Recieved NODE up from [" 
+							+ nodeState.host + ", " 
+							+ nodeState.nodeInfo.getAuxEndPointPort1() +  "]");
 					addNode(nodeState.host, nodeState.nodeInfo.getAuxEndPointPort1(), 1);
 				} catch (IOException e) {
-					logger.error("ELB SlaveHandler could not add Node [" + nodeState.host + ", " + nodeState.nodeInfo.getAuxEndPointPort1() + "]");
+					logger.error("ELB SlaveHandler could not add Node [" + nodeState.host + ", " + nodeState.nodeInfo.getAuxEndPointPort1() + "]", e);
 				}
 			}
 		}
@@ -407,6 +444,9 @@ public class OrcaController implements Runnable {
 				} catch (IOException e) {
 					logger.error("ELB SlaveHandler could not add Node [" + lastNodeState.host + ", " + lastNodeState.nodeInfo.getAuxEndPointPort1() + "]");
 				}				
+			} else {
+				OrcaController.this.numContainersDied.incrementAndGet();
+				this.state = SlaveState.NOT_STARTED;				
 			}
 		}
 

@@ -19,5 +19,5 @@ public class OrcaLaunchContext {
 
 	public Map<String, String> getEnv() {
 		return env;
-	}	
+	}
 }

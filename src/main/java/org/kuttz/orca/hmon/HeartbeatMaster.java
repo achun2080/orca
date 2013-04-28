@@ -2,8 +2,10 @@ package org.kuttz.orca.hmon;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,8 +43,16 @@ public class HeartbeatMaster implements THeartbeatEndPoint.Iface, Runnable {
 		this.masterArgs = args;
 	}	
 	
-	public void registerClient(HeartbeatMasterClient client) {
+	public Map<HeartbeatNode, NodeState> registerClient(HeartbeatMasterClient client) {
 		registerClient(-1, NodeType.CONTAINER, client);
+		HashMap<HeartbeatNode,NodeState> retVal = new HashMap<HeartbeatNode, NodeState>();		
+		for (Entry<NodeType, ConcurrentHashMap<HeartbeatNode, NodeState>> e : nodeRegistry.entrySet()) {					
+			ConcurrentHashMap<HeartbeatNode,NodeState> m = e.getValue();
+			for (Entry<HeartbeatNode,NodeState> e2 : m.entrySet()) {
+				retVal.put(e2.getKey(), e2.getValue());
+			}
+		}
+		return retVal;
 	}	
 	
 	public void registerClient(int nodeId, NodeType nodeType, HeartbeatMasterClient client) {

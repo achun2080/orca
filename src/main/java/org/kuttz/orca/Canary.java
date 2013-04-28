@@ -20,7 +20,7 @@ public class Canary {
 		for (String f : list2) {
 			System.out.println("File found new : " + f);
 		}		
-		for (int i = 0 ; i < 5; i++) {
+		for (int i = 0 ; i < 100; i++) {
 			try {
 				Thread.sleep(2000);
 			} catch (InterruptedException e) {

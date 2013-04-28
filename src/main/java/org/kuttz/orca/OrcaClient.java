@@ -36,22 +36,21 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
+import org.kuttz.orca.controller.OrcaControllerArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.beust.jcommander.Parameter;
 
 public class OrcaClient extends YarnClientImpl{
 	
 	private static Logger logger = LoggerFactory.getLogger(OrcaClient.class);
 
 	private final Configuration conf;
-	private final OrcaClientArgs orcaArgs;
+	private final OrcaControllerArgs orcaArgs;
 	
 	public static void main(String[] args) {
 		YarnConfiguration yarnConf = new YarnConfiguration();
 		
-		OrcaClientArgs orcaArgs = new OrcaClientArgs();
+		OrcaControllerArgs orcaArgs = new OrcaControllerArgs();
 		logger.info("OrcaClient args = " + Arrays.toString(args));
 		Tools.parseArgs(orcaArgs, args);
 		
@@ -71,7 +70,7 @@ public class OrcaClient extends YarnClientImpl{
 		System.exit(1);		
 	}
 	
-	public OrcaClient(OrcaClientArgs orcaArgs, Configuration conf) {
+	public OrcaClient(OrcaControllerArgs orcaArgs, Configuration conf) {
 		this.conf = conf;
 		this.orcaArgs = orcaArgs;
 		init(this.conf);
@@ -184,31 +183,32 @@ public class OrcaClient extends YarnClientImpl{
  			vargs.add("-Xrunjdwp:transport=dt_socket,address=8888,server=y,suspend=n");
  		}
  		
- 		vargs.add(OrcaApplicationMaster.class.getName());
+ 		vargs.add(OrcaAppMaster.class.getName());
+// 		vargs.add(OrcaAppMaster.class.getName()); 		
  		vargs.add("-num_containers");
  		vargs.add("" + orcaArgs.numContainers);
  		vargs.add("-hb_period");
- 		vargs.add("10000");
+ 		vargs.add("" + orcaArgs.hbPeriod);
  		vargs.add("-hb_warn_time");
- 		vargs.add("15000");
+ 		vargs.add("" + orcaArgs.hbWarnTime);
  		vargs.add("-hb_dead_time");
- 		vargs.add("30000");
+ 		vargs.add("" + orcaArgs.hbDeadTime);
  		vargs.add("-hb_num_check_threads");
- 		vargs.add("1");
+ 		vargs.add("" + orcaArgs.hbCheckerThreads);
  		vargs.add("-hb_num_master_threads");
- 		vargs.add("2");
+ 		vargs.add("" + orcaArgs.hbMasterThreads);
  		vargs.add("-hb_min_port");
- 		vargs.add("8100");
+ 		vargs.add("" + orcaArgs.hbMinPort);
  		vargs.add("-hb_max_port");
- 		vargs.add("8200");
+ 		vargs.add("" + orcaArgs.hbMaxPort);
  		vargs.add("-elb_min_port");
- 		vargs.add("8100");
+ 		vargs.add("" + orcaArgs.elbMinPort);
  		vargs.add("-elb_max_port");
- 		vargs.add("8200");
+ 		vargs.add("" + orcaArgs.elbMaxPort);
  		vargs.add("-app_name");
- 		vargs.add("test_app");
+ 		vargs.add(orcaArgs.appName);
  		vargs.add("-war_location");
- 		vargs.add("/path/to/war");	 		
+ 		vargs.add(orcaArgs.warLocation); 		
  		vargs.add("1>/tmp/OrcaApplicationMaster.stdout");
  		vargs.add("2>/tmp/OrcaApplicationMaster.stderr");
  		
@@ -261,7 +261,7 @@ public class OrcaClient extends YarnClientImpl{
 		
 		while(true) {
 			try {
-			    Thread.sleep(1000);
+			    Thread.sleep(10000);
 			} catch (InterruptedException e) {
 			    logger.debug("Thread sleep in monitoring loop interrupted");
 			}

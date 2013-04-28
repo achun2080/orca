@@ -49,9 +49,9 @@ import org.kuttz.orca.controller.OrcaControllerArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OrcaApplicationMaster {
+public class DummyApplicationMaster {
 
-	private static Logger logger = LoggerFactory.getLogger(OrcaApplicationMaster.class);
+	private static Logger logger = LoggerFactory.getLogger(DummyApplicationMaster.class);
 	
 	private final OrcaControllerArgs orcaArgs;
 	
@@ -107,7 +107,7 @@ public class OrcaApplicationMaster {
 		logger.info("OrcaAM args = " + Arrays.toString(args));
 		Tools.parseArgs(orcaArgs, args);
 		
-		OrcaApplicationMaster appMaster = new OrcaApplicationMaster(orcaArgs);
+		DummyApplicationMaster appMaster = new DummyApplicationMaster(orcaArgs);
 		boolean result = false;
 		try {
 			appMaster.init();
@@ -125,7 +125,7 @@ public class OrcaApplicationMaster {
 		System.exit(1);				
 	}
 	
-	public OrcaApplicationMaster(OrcaControllerArgs orcaArgs) {
+	public DummyApplicationMaster(OrcaControllerArgs orcaArgs) {
 		this.orcaArgs = orcaArgs;
 	}
 	
@@ -212,7 +212,7 @@ public class OrcaApplicationMaster {
 	        // For the first loop, askCount will be equal to total containers needed
 	        // From that point on, askCount will always be 0 as current implementation
 	        // does not change its ask on container failures.
-	        int askCount = orcaArgs.numContainers - numRequestedContainers.get();
+	        int askCount = orcaArgs.numContainers - numRequestedContainers.get() + numFailedContainers.get();
 	        numRequestedContainers.addAndGet(askCount);
 
 	        // Setup request to be sent to RM to allocate containers
