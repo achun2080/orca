@@ -133,13 +133,18 @@ public class OrcaController implements Runnable {
 			} catch (InterruptedException e) {
 				// Dont Care
 			}
-			handleClientRequest(req);			
+			if (req != null) {
+				handleClientRequest(req);			
+			}
 		}		
 	}
 	
 	private void handleClientRequest(ClientRequest req) {
-		// Do care right now..
-		// But must handle request to add/remove nodes
+		if (req.scaleNum > 0) {
+			for (int i = 0; i < req.scaleNum; i++) {
+				slaves.add(new ContainerSlaveHandler(createContainerLaunchArgs(this.ocArgs)));
+			}
+		}
 	}
 
 	private WebAppArgs createContainerLaunchArgs(OrcaControllerArgs ocArgs) {

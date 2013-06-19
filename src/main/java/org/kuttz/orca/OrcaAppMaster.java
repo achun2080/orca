@@ -14,7 +14,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.servlet.ServletException;
@@ -54,7 +53,6 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
-import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 import org.kuttz.orca.controller.OrcaController;
 import org.kuttz.orca.controller.OrcaController.ControllerRequest;
@@ -608,6 +606,10 @@ public class OrcaAppMaster implements OrcaControllerClient, HeartbeatMasterClien
 	        		OrcaAppMaster.this.tp.shutdownNow();
 	        		logger.info("\nRecieved Request to Kill self !!\n");
 	        		jResp.put("status", "axed");
+	        	} else if (target.endsWith("scale_up")) {
+	        		OrcaAppMaster.this.oc.scaleUpBy(1);
+	        		jResp.put("status", "running");
+	        		jResp.put("scale_up", "1");
 	        	}
 	        } catch (Exception e) {
 	        	// Ignore for the time being..

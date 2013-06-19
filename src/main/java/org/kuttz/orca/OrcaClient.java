@@ -183,8 +183,7 @@ public class OrcaClient extends YarnClientImpl{
  			vargs.add("-Xrunjdwp:transport=dt_socket,address=8888,server=y,suspend=n");
  		}
  		
- 		vargs.add(OrcaAppMaster.class.getName());
-// 		vargs.add(OrcaAppMaster.class.getName()); 		
+ 		vargs.add(OrcaAppMaster.class.getName()); 		
  		vargs.add("-num_containers");
  		vargs.add("" + orcaArgs.numContainers);
  		vargs.add("-hb_period");
